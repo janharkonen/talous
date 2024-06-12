@@ -1,6 +1,6 @@
 import pandas as pd
 from pandas import DataFrame, Index
-
+#print(__name__)
 def get_cur(cur1 : str, cur2 : str) -> str:
     if (cur1 == 'EUR') and (cur2 != 'EUR'):
         return cur2

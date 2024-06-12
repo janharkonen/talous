@@ -1,7 +1,7 @@
 import pandas as pd
 from pandas import DataFrame
 from helper_functions import *
-
+#print(__name__)
 def run_verolaskelmat(input_df : DataFrame) -> DataFrame:
     output_df = create_empty_output_DataFrame()
 
