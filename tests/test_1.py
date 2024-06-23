@@ -13,10 +13,7 @@ class TestDataTransformation(unittest.TestCase):
         self.assertEqual(RawData1.filename, TEST_INPUT_FILE)
 
         RawDataScraper1 = RawDataScraper(TEST_INPUT_FILE)
-        RawDataScraper1.df = 1
 
-        self.assertEqual(RawDataScraper1.get_currency_list()[0], 'BTC')
-        self.assertEqual(RawDataScraper1.get_currency_list()[1], 'CRO')
         list = ['BTC','CRO','ETH','USDC','DOT','BNB','DOGE','ADA','ICP','SHIB','TGBP','UNI','XYO','LTC']
         for i in range(0,len(list)):
             self.assertEqual(RawDataScraper1.get_currency_list()[i], list[i])
