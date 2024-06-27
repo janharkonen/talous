@@ -10,11 +10,7 @@ pd.set_option('display.max_rows', None)
 def main():
 
     RawData1 = CsvToRawDataFrame(INPUT_FILE)
-    master_input_df = RawData1.df
-
-    master_output_df = run_verolaskelmat(master_input_df);
-
-    master_output_df.to_csv(OUTPUT_FILE, index=False)
+    ARefinedData = RefinedData(RawData1.df)
 
 if __name__ == '__main__':
     main()
