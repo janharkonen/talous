@@ -3,12 +3,13 @@ from pandas import DataFrame, Index
 
 pd.set_option('display.max_columns', None)
 
-class RawData:
+class CsvToRawDataFrame:
 
     def __init__(self, filename : str) -> None:
+        assert filename[-4:] == '.csv', "Input should be a csv file"
         self.filename = filename
         self.df = pd.read_csv(filename)
-        self.df['Timestamp (UTC)'] = pd.to_datetime(self.df['Timestamp (UTC)'])
+        self.df['Timestamp (UTC)'] = pd.to_datetime(self.df['Timestamp (UTC)']) #TODO: tämä laittaa sekunnit nolliksi
 
 class RawDataScraper(RawData):
 

@@ -5,18 +5,18 @@ from typing import cast
 
 import unittest
 
-TEST_INPUT_FILE = '../yksityinen/crypto_transactions_record_test.csv'
+TEST_INPUT_CSV = 'D:/Python-projektit/yksityinen/crypto_transactions_record_test.csv'
 
 class TestDataTransformation(unittest.TestCase):
     def test_RawData(self):
-        RawData1 = RawData(TEST_INPUT_FILE)
-        self.assertEqual(RawData1.filename, TEST_INPUT_FILE)
-    
+        RawData1 = CsvToRawDataFrame(TEST_INPUT_CSV)
+        self.assertEqual(RawData1.filename, TEST_INPUT_CSV)
+
     def test_RawDataScraper(self):
         RawDataScraper1 = RawDataScraper(TEST_INPUT_FILE)
         self.assertEqual(RawDataScraper1.filename, TEST_INPUT_FILE)
 
-        RawData1 = RawData(TEST_INPUT_FILE)
+        RawData1 = CsvToRawDataFrame(TEST_INPUT_FILE)
         RawDataScraper2 = RawDataScraper(RawData1)
         self.assertEqual(RawDataScraper2.filename, TEST_INPUT_FILE)
 
