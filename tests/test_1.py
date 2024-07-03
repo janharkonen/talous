@@ -12,8 +12,10 @@ import unittest
 class TestDataTransformation(unittest.TestCase):
     def test_RawData(self):
         RawData1 = RawData()
-        #self.assertEqual(RawData1.df, pd.DataFrame())
-
+        self.assertEqual(RawData1.df.shape[0], 0)
+        self.assertEqual(RawData1.df.shape[1], 0)
+    
+    def test_CsvToRawData(self):
         with self.assertRaises(AssertionError) as context1:
             CsvToRawData1 = CsvToRawData('asd.notcsv')
 
