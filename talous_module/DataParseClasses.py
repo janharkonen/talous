@@ -3,8 +3,11 @@ from pandas import DataFrame, Index
 
 pd.set_option('display.max_columns', None)
 
-class CsvToRawDataFrame:
+class RawData:
+    def __init__(self):
+        self.df = pd.DataFrame()
 
+class CsvToRawData(RawData):
     def __init__(self, filename : str) -> None:
         assert filename[-4:] == '.csv', "Input should be a csv file"
         self.filename = filename
