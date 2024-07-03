@@ -1,9 +1,11 @@
 import pandas as pd
-from pandas import DataFrame, Index
+from pandas import DataFrame
 
 pd.set_option('display.max_columns', None)
 
 class RawData:
+
+    
     def __init__(self):
         self.df = pd.DataFrame()
 
