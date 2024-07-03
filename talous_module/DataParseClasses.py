@@ -18,8 +18,8 @@ class CsvToRawData(RawData):
 
 class RefinedData: 
     def __init__(self, input : CsvToRawData) -> None:
-        assert isinstance(input, CsvToRawData), "Input must be an instance of CsvToRawDataFrame"
+        assert isinstance(input, CsvToRawData), "Input must be an instance of CsvToRawData"
         self.df = self.__convert_rawdata_to_refined(input.df)
         
-    def __convert_rawdata_to_refined(df_in : DataFrame) -> DataFrame:
+    def __convert_rawdata_to_refined(self, df_in : DataFrame) -> DataFrame:
         return df_in

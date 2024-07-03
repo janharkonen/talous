@@ -9,7 +9,7 @@ pd.set_option('display.max_rows', None)
 def main():
 
     RawData1 = CsvToRawData(INPUT_FILE)
-    ARefinedData = RefinedData(RawData1.df)
+    ARefinedData = RefinedData(RawData1)
     ARefinedData.df
 
 if __name__ == '__main__':
