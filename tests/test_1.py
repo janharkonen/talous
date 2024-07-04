@@ -16,6 +16,9 @@ class TestDataTransformation(unittest.TestCase):
         self.assertEqual(RawData1.df.shape[1], 0)
     
     def test_CsvToRawData(self):
+        with self.assertRaises(FileNotFoundError) as context1:
+            CsvToRawData1 = CsvToRawData('nonexistantfile.csv')
+        
         with self.assertRaises(AssertionError) as context1:
             CsvToRawData1 = CsvToRawData('asd.notcsv')
 
