@@ -71,6 +71,7 @@ class RefinedDataByCurrency:
         df_sell = self.get_dataframe_by_buysell('SELL')
         return df_buy['Hinta (EUR)'].sum() - df_sell['Hinta (EUR)'].sum()
 
+
 class RefinedData:
 
     def __init__(self, input: CsvToRawData) -> None:
@@ -348,13 +349,13 @@ class RefinedData:
     def get_yearly_profit_by_currency(self, year: int, cur: str):
         rd = self.get_refined_data_by_currency(cur)
         return rd.get_yearly_profit(year)
-    
+
     def get_net_invested_by_currency(self, cur: str):
         rd = self.get_refined_data_by_currency(cur)
         return rd.get_net_invested()
 
-class RefinedDataWriter:
 
+class RefinedDataWriter:
 
     def __init__(self, refined_data: RefinedData, outputfilename: str):
         assert type(refined_data) is RefinedData, "Input should be RefinedData"
@@ -380,18 +381,18 @@ class RefinedDataWriter:
     def __add_currency_data_to_csv(self, cur: str):
         df = self.__get_dataframe_by_currency(cur)
         df.to_csv(self.outputfilename, mode='a', index=False, header=False)
-    
+
     def __get_dataframe_by_currency(self, cur) -> DataFrame:
         rd = self.refined_data.get_refined_data_by_currency(cur)
         return rd.df
-    
+
     def __add_empty_lines_to_csv(self, empty_line_amount: int):
         df = pd.DataFrame()
         empty_strings = [''] * empty_line_amount
         series = pd.Series(empty_strings)
         df = pd.concat([df, series.to_frame()], ignore_index=True)
         df.to_csv(self.outputfilename, mode='a', index=False, header=False)
-    
+
     def __add_yearly_profit_summary_by_currency(self, cur: str):
         year_list = self.refined_data.get_year_list()
         df = pd.DataFrame()
