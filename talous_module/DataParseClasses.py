@@ -66,6 +66,11 @@ class RefinedDataByCurrency:
     def get_summary_data_frame(self, yearlist) -> DataFrame:
         return pd.DataFrame()
 
+    def get_net_invested(self):
+        df_buy = self.get_dataframe_by_buysell('BUY')
+        df_sell = self.get_dataframe_by_buysell('SELL')
+        return df_buy['Hinta (EUR)'].sum() - df_sell['Hinta (EUR)'].sum()
+
 
 class RefinedData:
 
@@ -344,3 +349,80 @@ class RefinedData:
     def get_yearly_profit_by_currency(self, year: int, cur: str):
         rd = self.get_refined_data_by_currency(cur)
         return rd.get_yearly_profit(year)
+
+    def get_net_invested_by_currency(self, cur: str):
+        rd = self.get_refined_data_by_currency(cur)
+        return rd.get_net_invested()
+
+
+class RefinedDataWriter:
+
+    def __init__(self, refined_data: RefinedData, outputfilename: str):
+        assert type(refined_data) is RefinedData, "Input should be RefinedData"
+        self.refined_data = refined_data
+        self.outputfilename = outputfilename
+
+    def run(self):
+        cur_list = self.refined_data.get_currency_list()
+
+        self.__add_first_line()
+        for cur in cur_list:
+            self.__add_currency_data_to_csv(cur)
+            self.__add_yearly_profit_summary_by_currency(cur)
+            self.__add_empty_lines_to_csv(1)
+        self.__add_profit_summary_table()
+        self.__add_empty_lines_to_csv(1)
+        self.__add_portfolio_summary_table()
+
+    def __add_first_line(self):
+        df = self.refined_data.df.iloc[0:0]
+        df.to_csv(self.outputfilename, mode='a', index=False)
+
+    def __add_currency_data_to_csv(self, cur: str):
+        df = self.__get_dataframe_by_currency(cur)
+        df.to_csv(self.outputfilename, mode='a', index=False, header=False)
+
+    def __get_dataframe_by_currency(self, cur) -> DataFrame:
+        rd = self.refined_data.get_refined_data_by_currency(cur)
+        return rd.df
+
+    def __add_empty_lines_to_csv(self, empty_line_amount: int):
+        df = pd.DataFrame()
+        empty_strings = [''] * empty_line_amount
+        series = pd.Series(empty_strings)
+        df = pd.concat([df, series.to_frame()], ignore_index=True)
+        df.to_csv(self.outputfilename, mode='a', index=False, header=False)
+
+    def __add_yearly_profit_summary_by_currency(self, cur: str):
+        year_list = self.refined_data.get_year_list()
+        df = pd.DataFrame()
+        for year in year_list:
+            profit = self.refined_data.get_yearly_profit_by_currency(year, cur)
+            row = [cur, 'Voitto vuodelta '+str(year), profit]
+            series = pd.Series(row)
+            df = pd.concat([df, series.to_frame().T], ignore_index=True)
+        df.to_csv(self.outputfilename, mode='a', index=False, header=False)
+
+    def __add_profit_summary_table(self):
+        year_list = self.refined_data.get_year_list()
+        cur_list = list(self.refined_data.get_currency_list())
+        df = pd.DataFrame(columns=year_list, index=cur_list)
+        for i, row in df.iterrows():
+            cur = row.name
+            for year in year_list:
+                profit = self.refined_data.get_yearly_profit_by_currency(year, cur)
+                row[year] = profit
+        df.to_csv(self.outputfilename, mode='a')
+
+    def __add_portfolio_summary_table(self):
+        ind = ['Jäljellä (kryptovaluuttana)', 'Net invested']
+        cur_list = list(self.refined_data.get_currency_list())
+        df = pd.DataFrame(columns=ind, index=cur_list)
+        for i, row in df.iterrows():
+            cur = row.name
+            df2 = self.__get_dataframe_by_currency(cur)
+            jaljella = df2['Kryptovaluuttaa jäljellä (FIFO)'].sum()
+            row['Jäljellä (kryptovaluuttana)'] = jaljella
+            net_invested = self.refined_data.get_net_invested_by_currency(cur)
+            row['Net invested'] = net_invested
+        df.to_csv(self.outputfilename, mode='a')
