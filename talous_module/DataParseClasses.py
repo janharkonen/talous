@@ -19,67 +19,33 @@ class CsvToRawData(RawData):
         self.df['Timestamp (UTC)'] = pd.to_datetime(self.df['Timestamp (UTC)'])  # TODO: tämä laittaa sekunnit nolliksi
 
 
-class RefinedDataByCurrency:
-
-    def __init__(self, df_in: DataFrame, cur: str):
-        self.currency = cur
-        self.df = df_in
-        self.df_buy = self.get_dataframe_by_buysell('BUY')
-        self.df_sell = self.get_dataframe_by_buysell('SELL')
-        self.calculate_fifo_and_profit()
-        self.df = pd.concat([self.df_buy, self.df_sell], ignore_index=True)
-        self.df = self.df.sort_values(by=['Aikaleima'])
-
-    def calculate_fifo_and_profit(self) -> None:
-        for i, row in self.df_sell.iterrows():
-            sold_crypto_amount = row['Määrä kryptovaluuttana']
-            calculated_purchase_price_eur = self._update_jaljella_oleva_and_laske_ostohinta(sold_crypto_amount)
-            row['Laskettu ostohinta'] = calculated_purchase_price_eur
-            row['Voitto'] = row['Hinta (EUR)'] - row['Laskettu ostohinta']
-
-    def _update_jaljella_oleva_and_laske_ostohinta(self, sold_crypto_amount: float) -> float:
-        calculated_purchase_price_eur = 0.0
-        for i, row in self.df_buy.iterrows():
-            if sold_crypto_amount > 0:
-                if row['Kryptovaluuttaa jäljellä (FIFO)'] != 0:  # TODO: tähän vois laittaa joku flägi, ettei tarvii joka myynnin yhteydessä iteroida jokaisen rivin läpi (jonka Kryptovaluuttaa jäljellä (FIFO) arvo on nolla)
-                    if row['Kryptovaluuttaa jäljellä (FIFO)'] >= sold_crypto_amount:
-                        row['Kryptovaluuttaa jäljellä (FIFO)'] = row['Kryptovaluuttaa jäljellä (FIFO)'] - sold_crypto_amount
-                        calculated_purchase_price_eur = calculated_purchase_price_eur + row['EUR/kryptovaluutta']*sold_crypto_amount
-                        sold_crypto_amount = 0
-                    elif sold_crypto_amount > row['Kryptovaluuttaa jäljellä (FIFO)']:
-                        sold_crypto_amount = sold_crypto_amount - row['Kryptovaluuttaa jäljellä (FIFO)']
-                        calculated_purchase_price_eur = calculated_purchase_price_eur + row['EUR/kryptovaluutta']*row['Kryptovaluuttaa jäljellä (FIFO)']
-                        row['Kryptovaluuttaa jäljellä (FIFO)'] = 0
-
-            else:
-                break
-        return calculated_purchase_price_eur
-
-    def get_dataframe_by_buysell(self, buysell: str) -> DataFrame:
-        return self.df[self.df['Osto/Myynti'] == buysell]
-
-    def get_yearly_profit(self, year: int) -> float:
-        cond = pd.DatetimeIndex(self.df_sell['Aikaleima']).year == year
-        df_year = self.df_sell[cond]
-        return df_year['Voitto'].sum()
-
-    def get_summary_data_frame(self, yearlist) -> DataFrame:
-        return pd.DataFrame()
-
-    def get_net_invested(self):
-        df_buy = self.get_dataframe_by_buysell('BUY')
-        df_sell = self.get_dataframe_by_buysell('SELL')
-        return df_buy['Hinta (EUR)'].sum() - df_sell['Hinta (EUR)'].sum()
-
-
 class RefinedData:
 
     def __init__(self, input: CsvToRawData) -> None:
         assert isinstance(input, CsvToRawData), "Input must be an instance of CsvToRawData"
         self.df = self.__convert_rawdata_to_refined(input.df)
-        self.currency_list = self.__init_currency_list()
-        self.year_list = self.__init_year_list()
-        self.refined_data_by_currency_list = self.__create_refined_data_by_currency_list()
+        self._calculate_fifo_and_profit()
+        #self.refined_data_by_currency_list = self.__create_refined_data_by_currency_list()
+
+    def __convert_rawdata_to_refined(self, df_in: DataFrame) -> DataFrame:
+        out_indexes = [
+            'Kryptovaluutta',
+            'Aikaleima',
+            'Osto/Myynti',
+            'Hinta (EUR)',
+            'Määrä kryptovaluuttana',
+            'EUR/kryptovaluutta',
+            'Kryptovaluuttaa jäljellä (FIFO)',
+            'Laskettu ostohinta',
+            'Voitto',
+            'Kommentti'
+        ]
+        df_out = pd.DataFrame(columns=out_indexes)
+        for i, row_in in df_in.reindex().sort_index(ascending=False).iterrows():
+            row_out = self.__convert_row(row_in)
+            if row_out is not None:
+                df_out = pd.concat([df_out, row_out.to_frame().T], ignore_index=True)
+        return df_out
 
     def __convert_row(self, row):
         row_out = None
@@ -294,34 +260,33 @@ class RefinedData:
 
         return row_out
 
-    def __convert_rawdata_to_refined(self, df_in: DataFrame) -> DataFrame:
-        out_indexes = [
-            'Kryptovaluutta',
-            'Aikaleima',
-            'Osto/Myynti',
-            'Hinta (EUR)',
-            'Määrä kryptovaluuttana',
-            'EUR/kryptovaluutta',
-            'Kryptovaluuttaa jäljellä (FIFO)',
-            'Laskettu ostohinta',
-            'Voitto',
-            'Kommentti'
-        ]
-        df_out = pd.DataFrame(columns=out_indexes)
-        for i, row_in in df_in.reindex().sort_index(ascending=False).iterrows():
-            row_out = self.__convert_row(row_in)
-            if row_out is not None:
-                df_out = pd.concat([df_out, row_out.to_frame().T], ignore_index=True)
-        return df_out
+    def _calculate_fifo_and_profit(self):
+        for cur_str in self.get_currency_list():
+            for i, row in self.get_dataframe_with_cond(cur=cur_str, buysell='SELL').iterrows():
+                sold_crypto_amount = row['Määrä kryptovaluuttana']
+                calculated_purchase_price_eur = self._update_jaljella_oleva_and_laske_ostohinta(sold_crypto_amount, cur_str)
+                self.df.iloc[i]['Laskettu ostohinta'] = calculated_purchase_price_eur
+                self.df.iloc[i]['Voitto'] = row['Hinta (EUR)'] - self.df.iloc[i]['Laskettu ostohinta']
 
-    def __create_refined_data_by_currency_list(self) -> list:
-        lst = []
-        for cur in self.get_currency_list():
-            refined_data_by_currency = RefinedDataByCurrency(self.df[self.df['Kryptovaluutta'] == cur], cur)
-            lst.append(refined_data_by_currency)
-        return lst
+    def _update_jaljella_oleva_and_laske_ostohinta(self, sold_crypto_amount: float, cur_str: str) -> float:
+        calculated_purchase_price_eur = 0.0
+        for i, row in self.get_dataframe_with_cond(cur=cur_str, buysell='BUY').iterrows():
+            if sold_crypto_amount > 0:
+                if row['Kryptovaluuttaa jäljellä (FIFO)'] != 0:  # TODO: tähän vois laittaa joku flägi, ettei tarvii joka myynnin yhteydessä iteroida jokaisen rivin läpi (jonka Kryptovaluuttaa jäljellä (FIFO) arvo on nolla)
+                    if self.df.iloc[i]['Kryptovaluuttaa jäljellä (FIFO)'] >= sold_crypto_amount:
+                        self.df.iloc[i]['Kryptovaluuttaa jäljellä (FIFO)'] = self.df.iloc[i]['Kryptovaluuttaa jäljellä (FIFO)'] - sold_crypto_amount
+                        calculated_purchase_price_eur = calculated_purchase_price_eur + row['EUR/kryptovaluutta']*sold_crypto_amount
+                        sold_crypto_amount = 0
+                    elif sold_crypto_amount > self.df.iloc[i]['Kryptovaluuttaa jäljellä (FIFO)']:
+                        sold_crypto_amount = sold_crypto_amount - self.df.iloc[i]['Kryptovaluuttaa jäljellä (FIFO)']
+                        calculated_purchase_price_eur = calculated_purchase_price_eur + row['EUR/kryptovaluutta']*self.df.iloc[i]['Kryptovaluuttaa jäljellä (FIFO)']
+                        self.df.iloc[i]['Kryptovaluuttaa jäljellä (FIFO)'] = 0
 
-    def __init_currency_list(self):
+            else:
+                break
+        return calculated_purchase_price_eur
+
+    def get_currency_list(self):
         df2 = self.df[['Kryptovaluutta', 'Hinta (EUR)']]
         df3 = df2.groupby(['Kryptovaluutta'], as_index='True')['Hinta (EUR)'].sum()
         df4 = df2.groupby(['Kryptovaluutta'], as_index='True')['Hinta (EUR)'].count()
@@ -331,28 +296,31 @@ class RefinedData:
         # currencylist = pd.Series(['BTC','ETH','CRO','DOGE','BNB','ICP','ADA','UNI','LTC','SHIB','XYO','DOT','TGBP','USDC'])
         return df5
 
-    def __init_year_list(self):
+    def get_year_list(self):
         df2 = self.df['Aikaleima']
         begin_year = df2.iloc[0].year
         end_year = df2.iloc[-1].year
         return list(range(begin_year, end_year+1))
 
-    def get_currency_list(self):
-        return self.currency_list
+    def get_yearly_profit_by_currency(self, year_str: int, cur_str: str):
+        df = self.get_dataframe_with_cond(year=year_str, cur=cur_str, buysell='SELL')
+        return df['Voitto'].sum()
 
-    def get_year_list(self):
-        return self.year_list
+    def get_net_invested_by_currency(self, cur_str: str):
+        df_buy = self.get_dataframe_with_cond(cur=cur_str, buysell='BUY')
+        df_sell = self.get_dataframe_with_cond(cur=cur_str, buysell='SELL')
+        return df_buy['Hinta (EUR)'].sum() - df_sell['Hinta (EUR)'].sum()
 
-    def get_refined_data_by_currency(self, cur: str) -> DataFrame:
-        return self.refined_data_by_currency_list[self.currency_list.get_loc(cur)]
-
-    def get_yearly_profit_by_currency(self, year: int, cur: str):
-        rd = self.get_refined_data_by_currency(cur)
-        return rd.get_yearly_profit(year)
-
-    def get_net_invested_by_currency(self, cur: str):
-        rd = self.get_refined_data_by_currency(cur)
-        return rd.get_net_invested()
+    def get_dataframe_with_cond(self, cur: str=None, buysell: str=None, year: int=None):
+        df = self.df
+        if cur != None:
+            df = df[df['Kryptovaluutta']==cur]
+        if buysell != None:
+            df = df[df['Osto/Myynti']==buysell]
+        if year != None:
+            cond = pd.DatetimeIndex(df['Aikaleima']).year == year
+            df = df[cond] 
+        return df
 
 
 class RefinedDataWriter:
@@ -378,13 +346,9 @@ class RefinedDataWriter:
         df = self.refined_data.df.iloc[0:0]
         df.to_csv(self.outputfilename, mode='a', index=False)
 
-    def __add_currency_data_to_csv(self, cur: str):
-        df = self.__get_dataframe_by_currency(cur)
+    def __add_currency_data_to_csv(self, cur_str: str):
+        df = self.refined_data.get_dataframe_with_cond(cur=cur_str)
         df.to_csv(self.outputfilename, mode='a', index=False, header=False)
-
-    def __get_dataframe_by_currency(self, cur) -> DataFrame:
-        rd = self.refined_data.get_refined_data_by_currency(cur)
-        return rd.df
 
     def __add_empty_lines_to_csv(self, empty_line_amount: int):
         df = pd.DataFrame()
@@ -393,17 +357,20 @@ class RefinedDataWriter:
         df = pd.concat([df, series.to_frame()], ignore_index=True)
         df.to_csv(self.outputfilename, mode='a', index=False, header=False)
 
-    def __add_yearly_profit_summary_by_currency(self, cur: str):
-        year_list = self.refined_data.get_year_list()
+    def __add_yearly_profit_summary_by_currency(self, cur_str: str):
         df = pd.DataFrame()
-        for year in year_list:
-            profit = self.refined_data.get_yearly_profit_by_currency(year, cur)
-            row = [cur, 'Voitto vuodelta '+str(year), profit]
+        for year in self.refined_data.get_year_list():
+            profit = self.refined_data.get_yearly_profit_by_currency(year, cur_str)
+            row = [cur_str, 'Voitto vuodelta '+str(year), profit]
             series = pd.Series(row)
             df = pd.concat([df, series.to_frame().T], ignore_index=True)
         df.to_csv(self.outputfilename, mode='a', index=False, header=False)
 
     def __add_profit_summary_table(self):
+        df = self.get_profit_summary_table()
+        df.to_csv(self.outputfilename, mode='a')
+
+    def get_profit_summary_table(self):
         year_list = self.refined_data.get_year_list()
         cur_list = list(self.refined_data.get_currency_list())
         df = pd.DataFrame(columns=year_list, index=cur_list)
@@ -412,17 +379,23 @@ class RefinedDataWriter:
             for year in year_list:
                 profit = self.refined_data.get_yearly_profit_by_currency(year, cur)
                 row[year] = profit
-        df.to_csv(self.outputfilename, mode='a')
+        return df
 
     def __add_portfolio_summary_table(self):
+        df = self.get_portfolio_summary_table()
+        df.to_csv(self.outputfilename, mode='a')
+        
+    def get_portfolio_summary_table(self):
         ind = ['Jäljellä (kryptovaluuttana)', 'Net invested']
         cur_list = list(self.refined_data.get_currency_list())
         df = pd.DataFrame(columns=ind, index=cur_list)
         for i, row in df.iterrows():
-            cur = row.name
-            df2 = self.__get_dataframe_by_currency(cur)
+            cur_str = row.name
+            df2 = self.refined_data.get_dataframe_with_cond(cur=cur_str)
             jaljella = df2['Kryptovaluuttaa jäljellä (FIFO)'].sum()
             row['Jäljellä (kryptovaluuttana)'] = jaljella
-            net_invested = self.refined_data.get_net_invested_by_currency(cur)
+            net_invested = self.refined_data.get_net_invested_by_currency(cur_str)
             row['Net invested'] = net_invested
-        df.to_csv(self.outputfilename, mode='a')
+        return df
+
+    
